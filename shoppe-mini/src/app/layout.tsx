@@ -5,6 +5,8 @@ import "@/app/globals.css";
 import { cn } from "@/lib/utils";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { Toaster } from "sonner";
+import AuthProvider from "./(auth)/providers/authProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -44,8 +46,19 @@ export default function RootLayout({
         <GoogleOAuthProvider
           clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
         >
-          <AntdRegistry>{children}</AntdRegistry>
+          <AuthProvider>
+            <AntdRegistry>
+              {children}
+            </AntdRegistry>
+          </AuthProvider>
         </GoogleOAuthProvider>
+
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          duration={2000}
+        />
       </body>
     </html>
   );

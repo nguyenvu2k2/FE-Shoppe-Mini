@@ -1,10 +1,12 @@
-import LoginForm from "@/components/features/auth/login-form";
-import { Button } from "antd";
-import React from "react";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
-
-export default function Home() {
-  return (
-    <LoginForm></LoginForm>
-  );
+export default async function Home() {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("access_token");
+    if (accessToken) {
+        redirect("/shop");
+    } else {
+        redirect("/login");
+    }
 }
