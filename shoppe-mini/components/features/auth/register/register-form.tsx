@@ -56,13 +56,10 @@ export default function RegisterForm() {
             const response = await registerAuthService(formData);
             if (response.status === 201) {
                 router.push("/login");
-                notify.registerSuccess();
+                notify.success("Đăng ký thành công");
             }
-            console.log("Register with", formData);
         } catch (error) {
-            const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-            console.error("Register error:", axiosError.response?.data || axiosError.message);
-            notify.serverError();
+            notify.error("Đăng ký thất bại");
         }
     };
 

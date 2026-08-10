@@ -1,39 +1,44 @@
 "use client";
 
 import { useEffect } from "react";
-import Cookies from "js-cookie";
+import { usePathname } from "next/navigation";
 import { useAuthStore } from "../../(store)/auth/auth..store";
 import { getProfile } from "@/services/auth/auth.service";
-import { useRouter } from "next/navigation";
 
-
+const PUBLIC_AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 export default function AuthProvider({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const pathname = usePathname();
     const { setUser, setLoading } = useAuthStore();
-    const router = useRouter();
+
     useEffect(() => {
+        const isPublicAuthPage = PUBLIC_AUTH_PATHS.some((path) =>
+            pathname.startsWith(path)
+        );
+
+        if (isPublicAuthPage) {
+            setLoading(false);
+            return;
+        }
+
         const init = async () => {
+            setLoading(true);
             try {
-                const token = Cookies.get("access_token");
-
-                if (!token) return;
-
                 const { data } = await getProfile();
                 setUser(data);
-                router.replace("/shop");
-            } catch (error) {
-                console.error(error);
+            } catch {
+                // Không đăng nhập hoặc refresh thất bại — axios interceptor xử lý redirect
             } finally {
                 setLoading(false);
             }
         };
 
         init();
-    }, [setUser, setLoading]);
+    }, [pathname, setUser, setLoading]);
 
     return <>{children}</>;
 }

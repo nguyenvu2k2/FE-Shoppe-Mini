@@ -57,7 +57,7 @@ export default function RootLayout({
           position="top-right"
           richColors
           closeButton
-          duration={2000}
+          duration={1500}
         />
       </body>
     </html>

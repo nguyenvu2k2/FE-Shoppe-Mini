@@ -1,18 +1,24 @@
-export type AuthResponse = {
-    accessToken: string;
-    refreshToken: string;
-};
+import type { User } from "@/src/app/(store)/auth/auth..store";
 
-export function parseAuthResponse(data: unknown): AuthResponse | null {
-    if (
+function isUser(data: unknown): data is User {
+    return (
         typeof data === "object" &&
         data !== null &&
-        "accessToken" in data &&
-        "refreshToken" in data &&
-        typeof (data as AuthResponse).accessToken === "string" &&
-        typeof (data as AuthResponse).refreshToken === "string"
-    ) {
-        return data as AuthResponse;
+        "id" in data &&
+        "email" in data &&
+        "fullName" in data &&
+        "role" in data
+    );
+}
+
+export function parseUserResponse(data: unknown): User | null {
+    if (typeof data !== "object" || data === null) {
+        return null;
     }
-    return null;
+
+    if ("user" in data) {
+        return parseUserResponse((data as { user: unknown }).user);
+    }
+
+    return isUser(data) ? data : null;
 }

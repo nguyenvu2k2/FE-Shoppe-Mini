@@ -8,8 +8,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import GoogleLoginButton from "./google-login-button";
-import { getProfile, login } from "@/services/auth/auth.service";
-import { saveTokens } from "@/lib/auth";
+import { login } from "@/services/auth/auth.service";
+import { parseUserResponse } from "@/lib/auth.types";
 import { useRouter } from "next/navigation";
 import { notify } from "@/lib/toast";
 import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
@@ -42,23 +42,17 @@ export default function LoginForm() {
 
     const onSubmit = async (values: LoginFormValues) => {
         try {
-            const response = await login(values);
-            const isSuccess = response.status === 200 || response.status === 201;
-
-            if (isSuccess) {
-                saveTokens(response.data.accessToken, response.data.refreshToken);
+            const { data } = await login(values);
+            const user = parseUserResponse(data);
+            if (!user) {
+                notify.error("Phản hồi từ server không hợp lệ.");
+                return;
             }
-            const profile = await getProfile();
-            if (profile.status === 200 || profile.status === 201) {
-                console.log("Profile data:", profile.data);
-                setUser(profile.data);
-            }
-
+            setUser(user);
             router.replace("/shop");
-            notify.loginSuccess();
-        } catch (error) {
-            console.error("Login error:", error);
-            notify.serverError();
+            notify.success("Đăng nhập thành công");
+        } catch {
+            notify.error("Đăng nhập thất bại");
         }
     };
 
@@ -101,7 +95,7 @@ export default function LoginForm() {
                             <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
                         )}
                         <div className="mt-1 text-right">
-                            <Link href="#" className="text-sm text-[#05a] hover:opacity-80">
+                            <Link href="/forgot-password" className="text-sm text-[#05a] hover:opacity-80">
                                 Quên mật khẩu?
                             </Link>
                         </div>

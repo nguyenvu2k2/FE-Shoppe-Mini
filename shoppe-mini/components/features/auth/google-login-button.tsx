@@ -1,12 +1,13 @@
 "use client";
 
-import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
-
-import { api } from "../../../lib/axios";
 import { useState } from "react";
-import { parseAuthResponse } from "@/lib/auth.types";
-import { saveTokens } from "@/lib/auth";
+
+import { googleLogin } from "@/services/auth/auth.service";
+import { parseUserResponse } from "@/lib/auth.types";
+import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
+import { notify } from "@/lib/toast";
 
 function GoogleIcon() {
     return (
@@ -33,59 +34,48 @@ function GoogleIcon() {
 
 export default function GoogleLoginButton() {
     const router = useRouter();
-    const [, setError] = useState<string | null>(null);
     const [loading, setIsLoading] = useState(false);
+    const { setUser } = useAuthStore.getState();
 
-    const handleSuccess = async (credentialResponse: CredentialResponse) => {
-        try {
-            setIsLoading(true);
-            setError(null);
+    const handleGoogleLogin = useGoogleLogin({
+        flow: "auth-code",
+        onSuccess: async (codeResponse) => {
+            try {
+                setIsLoading(true);
+                const { data } = await googleLogin(codeResponse.code);
+                const user = parseUserResponse(data);
 
-            const idToken = credentialResponse.credential;
-            if (!idToken) {
-                console.log(1)
-                setError("Không lấy được token từ Google. Vui lòng thử lại.");
-                return;
+                if (!user) {
+                    notify.error("Phản hồi từ server không hợp lệ.");
+                    return;
+                }
+
+                setUser(user);
+                router.push("/shop");
+                notify.success("Đăng nhập thành công");
+            } catch (error) {
+                console.error("Google login thất bại:", error);
+                notify.error("Đăng nhập Google thất bại. Vui lòng thử lại.");
+            } finally {
+                setIsLoading(false);
             }
-
-            const { data } = await api.post("auth/google", {
-                idToken,
-            });
-
-            const tokens = parseAuthResponse(data);
-            if (!tokens) {
-                setError("Phản hồi từ server không hợp lệ.");
-                return;
-            }
-
-            saveTokens(tokens.accessToken, tokens.refreshToken);
-            router.push("/shop");
-        } catch (error) {
-            setError("Đăng nhập thất bại. Vui lòng thử lại.");
-            console.error("Google login thất bại:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        },
+        onError: () => {
+            notify.error("Đăng nhập Google thất bại. Vui lòng thử lại.");
+        },
+    });
 
     return (
-        <div className={`relative ${loading ? "pointer-events-none opacity-60" : ""}`}>
-            <div className="pointer-events-none flex w-full items-center justify-center gap-2 rounded-sm border border-gray-300 bg-white py-2.5 text-sm text-gray-700">
+        <div>
+            <button
+                type="button"
+                onClick={() => handleGoogleLogin()}
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-sm border border-gray-300 bg-white py-2.5 text-sm text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
                 <GoogleIcon />
-                Google
-            </div>
-            <div className="absolute inset-0 overflow-hidden opacity-[0.01]">
-                <GoogleLogin
-                    onSuccess={handleSuccess}
-                    onError={() => console.error("Google login lỗi")}
-                    width="340"
-                    size="large"
-                    theme="outline"
-                    text="signin_with"
-                />
-            </div>
-            {loading && <p className="mt-2 text-center text-sm text-gray-500">Đang đăng nhập...</p>}
+                {loading ? "Đang đăng nhập..." : "Google"}
+            </button>
         </div>
     );
 }
-
