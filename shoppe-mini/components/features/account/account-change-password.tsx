@@ -11,7 +11,8 @@ import { isAxiosError } from "axios";
 import { changeUserPassword } from "@/services/user/user.service";
 import { logout } from "@/services/auth/auth.service";
 import { notify } from "@/lib/toast";
-import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
+import { useAuthStore } from "@/lib/auth-store";
+import { useCartStore } from "@/lib/cart-store";
 import AccountShell from "./account-shell";
 
 const changePasswordSchema = z
@@ -61,8 +62,8 @@ function PasswordField({
     placeholder: string;
 }) {
     return (
-        <div className="flex min-h-[44px] items-start border-b border-[#f5f5f5] py-3 last:border-b-0">
-            <label className="flex w-[30%] shrink-0 items-center justify-end pr-6 pt-2 text-sm text-[#555]">
+        <div className="flex min-h-[44px] flex-col items-stretch border-b border-[#f5f5f5] py-3 last:border-b-0 sm:flex-row sm:items-start">
+            <label className="mb-1.5 text-sm text-[#555] sm:mb-0 sm:flex sm:w-[30%] sm:shrink-0 sm:items-center sm:justify-end sm:pr-6 sm:pt-2">
                 {label}
             </label>
             <div className="w-full max-w-[420px]">
@@ -129,10 +130,11 @@ export default function AccountChangePassword() {
             try {
                 await logout();
             } catch {
-                // Token có thể đã bị revoke — vẫn clear local state
+                // ignore
             }
 
             clearUser();
+            useCartStore.getState().clearLocal();
             router.replace("/login");
         } catch (error) {
             notify.error(
@@ -151,15 +153,20 @@ export default function AccountChangePassword() {
                     <span className="mt-1.5 h-5 w-1 shrink-0 rounded-full bg-[#ee4d2d]" />
                     <div>
                         <h1 className="text-xl font-normal capitalize text-[#333]">
-                            Đổi Mật Khẩu
+                            Bảo mật
                         </h1>
                         <p className="mt-1 text-sm text-[#939393]">
-                            Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu
-                            với người khác
+                            Đổi mật khẩu tài khoản. Sau khi đổi, bạn sẽ cần đăng
+                            nhập lại.
                         </p>
                     </div>
                 </div>
                 <div className="mt-4 h-px bg-[#efefef]" />
+
+                <p className="mt-4 rounded-sm bg-[#fff8f6] px-3 py-2 text-xs text-[#8a5a4a]">
+                    Tài khoản chỉ đăng nhập bằng Google (không có mật khẩu local)
+                    sẽ không đổi được mật khẩu qua form này.
+                </p>
 
                 <form
                     onSubmit={handleSubmit(onSubmit)}
@@ -193,8 +200,7 @@ export default function AccountChangePassword() {
                         placeholder="Nhập lại mật khẩu mới"
                     />
 
-                    <div className="flex pt-6">
-                        <div className="w-[30%] shrink-0 pr-6" />
+                    <div className="flex pt-6 sm:pl-[30%]">
                         <button
                             type="submit"
                             disabled={isSubmitting}

@@ -19,7 +19,7 @@ export default function AuthLayout({ title, children }: AuthLayoutProps) {
                                 S
                             </span>
                             <span className="text-xl font-bold tracking-tight text-gray-900">
-                                shoppe
+                                shop
                                 <span className="bg-gradient-to-r from-[#ee4d2d] to-[#ff6b4a] bg-clip-text text-transparent">
                                     mini
                                 </span>

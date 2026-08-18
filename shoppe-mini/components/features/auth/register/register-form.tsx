@@ -47,19 +47,25 @@ export default function RegisterForm() {
 
     const onSubmit = async (values: RegisterFormValues) => {
         try {
-            const formData = {
+            const response = await registerAuthService({
                 fullName: values.fullName.trim(),
                 email: values.email.trim(),
                 password: values.password.trim(),
-                role: "customer",
-            };
-            const response = await registerAuthService(formData);
-            if (response.status === 201) {
+            });
+            if (response.status === 201 || response.status === 200) {
+                notify.success("Đăng ký thành công. Vui lòng đăng nhập.");
                 router.push("/login");
-                notify.success("Đăng ký thành công");
             }
         } catch (error) {
-            notify.error("Đăng ký thất bại");
+            const message =
+                error instanceof AxiosError
+                    ? (error.response?.data as { message?: string | string[] })
+                          ?.message
+                    : null;
+            const text = Array.isArray(message)
+                ? message.join(", ")
+                : message || "Đăng ký thất bại";
+            notify.error(text);
         }
     };
 

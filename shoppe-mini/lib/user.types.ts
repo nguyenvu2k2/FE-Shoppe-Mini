@@ -14,6 +14,8 @@ export interface UserProfile {
 export interface UpdateProfileRequest {
     fullName?: string;
     phone?: string;
+    /** Ưu tiên POST /users/me/avatar cho upload file */
+    avatar?: string;
 }
 
 export interface ChangePasswordRequest {

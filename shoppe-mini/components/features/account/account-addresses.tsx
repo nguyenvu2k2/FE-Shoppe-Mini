@@ -67,7 +67,11 @@ export default function AccountAddresses() {
     const loadAddresses = useCallback(async () => {
         try {
             const { data } = await listAddresses();
-            setAddresses(data);
+            const sorted = [...(data ?? [])].sort((a, b) => {
+                if (a.isDefault === b.isDefault) return 0;
+                return a.isDefault ? -1 : 1;
+            });
+            setAddresses(sorted);
         } catch (error) {
             notify.error(
                 getErrorMessage(error, "Không thể tải sổ địa chỉ.")
@@ -115,7 +119,6 @@ export default function AccountAddresses() {
 
             if (mode === "edit" && editing) {
                 const { isDefault, ...rest } = payload;
-                // Không gửi isDefault: false cho địa chỉ đang mặc định (API 400)
                 await updateAddress(editing.id, {
                     ...rest,
                     ...(editing.isDefault ? {} : { isDefault }),

@@ -24,7 +24,7 @@ export default function AccountShell({ children }: AccountShellProps) {
                     aria-label="Breadcrumb"
                     className="mb-4 flex items-center gap-1.5 text-sm text-[#999]"
                 >
-                    <Link href="/shop" className="transition hover:text-[#ee4d2d]">
+                    <Link href="/" className="transition hover:text-[#ee4d2d]">
                         Trang chủ
                     </Link>
                     <ChevronRight className="size-3.5" />

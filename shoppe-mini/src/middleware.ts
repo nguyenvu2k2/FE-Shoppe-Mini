@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
-/** Chỉ redirect về /shop khi đã login — không áp dụng cho forgot/reset password */
-const GUEST_ONLY_PATHS = ["/login", "/register"];
-const PROTECTED_PATHS = ["/shop", "/account", "/orders"];
+/** Alias theo prompt */
+const SIGNIN_ALIAS = "/signin";
+
+/** Cần cookie session. Catalog (/ , /categories, /products) là public. */
+const PROTECTED_PATHS = [
+    "/account",
+    "/orders",
+    "/cart",
+    "/checkout",
+    "/payments",
+    "/admin",
+];
 
 function hasSession(request: NextRequest) {
     return (
@@ -21,6 +30,13 @@ export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const authenticated = hasSession(request);
 
+    if (pathname === SIGNIN_ALIAS || pathname.startsWith(`${SIGNIN_ALIAS}/`)) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        return NextResponse.redirect(url);
+    }
+
+    // Chưa có cookie → không vào route bảo vệ
     if (matchesPath(pathname, PROTECTED_PATHS) && !authenticated) {
         const loginUrl = request.nextUrl.clone();
         loginUrl.pathname = "/login";
@@ -28,29 +44,33 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    if (
-        matchesPath(pathname, GUEST_ONLY_PATHS) &&
-        authenticated &&
-        request.nextUrl.searchParams.get("session") !== "expired"
-    ) {
-        const shopUrl = request.nextUrl.clone();
-        shopUrl.pathname = "/shop";
-        shopUrl.search = "";
-        return NextResponse.redirect(shopUrl);
-    }
+    /**
+     * KHÔNG redirect /login|/register khi còn cookie.
+     * Cookie hết hạn / refresh fail vẫn còn trong browser → user thấy nút
+     * "Đăng nhập" (user=null) nhưng middleware đá về / → không vào được login.
+     * Việc redirect khi đã login thật do client (LoginForm) xử lý.
+     */
 
     return NextResponse.next();
 }
 
 export const config = {
     matcher: [
-        "/shop",
-        "/shop/:path*",
         "/account",
         "/account/:path*",
         "/orders",
         "/orders/:path*",
+        "/cart",
+        "/cart/:path*",
+        "/checkout",
+        "/checkout/:path*",
+        "/payments",
+        "/payments/:path*",
+        "/admin",
+        "/admin/:path*",
         "/login",
+        "/signin",
+        "/signin/:path*",
         "/register",
     ],
 };

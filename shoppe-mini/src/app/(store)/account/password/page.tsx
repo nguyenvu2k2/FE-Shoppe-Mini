@@ -1,5 +1,6 @@
-import AccountChangePassword from "@/components/features/account/account-change-password";
+import { redirect } from "next/navigation";
 
-export default function AccountPasswordPage() {
-    return <AccountChangePassword />;
+/** Alias cũ → canonical /account/security theo prompt */
+export default function AccountPasswordAliasPage() {
+    redirect("/account/security");
 }

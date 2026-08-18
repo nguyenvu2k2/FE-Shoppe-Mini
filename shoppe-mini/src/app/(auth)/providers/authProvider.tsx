@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { useAuthStore } from "../../(store)/auth/auth..store";
-import { getProfile } from "@/services/auth/auth.service";
 
-const PUBLIC_AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+import { useAuthStore } from "@/lib/auth-store";
+import { useCartStore } from "@/lib/cart-store";
+import { hydrateAuthSession } from "@/lib/auth-session";
+
+const PUBLIC_AUTH_PATHS = [
+    "/login",
+    "/signin",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+];
 
 export default function AuthProvider({
     children,
@@ -13,32 +21,54 @@ export default function AuthProvider({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-    const { setUser, setLoading } = useAuthStore();
+    const setLoading = useAuthStore((state) => state.setLoading);
+    /** true = đã thử hydrate xong (kể cả guest) */
+    const hydratedRef = useRef(false);
 
     useEffect(() => {
         const isPublicAuthPage = PUBLIC_AUTH_PATHS.some((path) =>
             pathname.startsWith(path)
         );
 
+        // Trang auth: không block UI; LoginForm tự kiểm tra session nếu cần
         if (isPublicAuthPage) {
             setLoading(false);
             return;
         }
 
+        if (hydratedRef.current) {
+            setLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+
         const init = async () => {
             setLoading(true);
             try {
-                const { data } = await getProfile();
-                setUser(data);
+                await hydrateAuthSession();
+                if (!cancelled) {
+                    hydratedRef.current = true;
+                }
             } catch {
-                // Không đăng nhập hoặc refresh thất bại — axios interceptor xử lý redirect
+                if (!cancelled) {
+                    useAuthStore.getState().clearUser();
+                    useCartStore.getState().clearLocal();
+                    hydratedRef.current = true;
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
 
-        init();
-    }, [pathname, setUser, setLoading]);
+        void init();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pathname, setLoading]);
 
     return <>{children}</>;
 }

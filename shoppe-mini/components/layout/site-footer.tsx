@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const footerSections = [
     {
-        title: "Về Shoppe Mini",
+        title: "Về Shop Mini",
         links: [
             { label: "Giới thiệu", href: "#" },
             { label: "Tuyển dụng", href: "#" },
@@ -20,12 +20,12 @@ const footerSections = [
         ],
     },
     {
-        title: "Danh mục",
+        title: "Mua sắm",
         links: [
-            { label: "Thời trang", href: "#" },
-            { label: "Điện tử", href: "#" },
-            { label: "Làm đẹp", href: "#" },
-            { label: "Nhà cửa", href: "#" },
+            { label: "Trang chủ", href: "/" },
+            { label: "Danh mục", href: "/categories" },
+            { label: "Sản phẩm", href: "/products" },
+            { label: "Giỏ hàng", href: "/cart" },
         ],
     },
 ];
@@ -36,12 +36,12 @@ export default function SiteFooter() {
             <div className="mx-auto max-w-[1200px] px-4 pt-12 pb-8">
                 <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
                     <div>
-                        <Link href="/shop" className="inline-flex items-center gap-2">
+                        <Link href="/" className="inline-flex items-center gap-2">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#ee4d2d] to-[#ff8c5a] text-sm font-black italic text-white">
                                 S
                             </span>
                             <span className="text-xl font-bold text-white">
-                                shoppe
+                                shop
                                 <span className="text-[#ff8c5a]">mini</span>
                             </span>
                         </Link>
@@ -74,7 +74,7 @@ export default function SiteFooter() {
 
                 <div className="mt-10 border-t border-white/10 pt-8 text-center">
                     <p className="text-xs text-gray-500">
-                        © {new Date().getFullYear()} Shoppe Mini. All rights reserved.
+                        © {new Date().getFullYear()} Shop Mini. All rights reserved.
                     </p>
                 </div>
             </div>

@@ -19,11 +19,16 @@ import {
     maskEmail,
     usernameFromEmail,
 } from "@/lib/format-profile";
-import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
+import { useAuthStore } from "@/lib/auth-store";
 import AccountShell from "./account-shell";
 
-const MAX_AVATAR_SIZE = 1024 * 1024;
-const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/png"]);
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+]);
 
 const profileSchema = z.object({
     fullName: z.string().trim().min(1, "Vui lòng nhập tên"),
@@ -68,9 +73,14 @@ function FieldLabel({
     hint?: boolean;
 }) {
     return (
-        <label className="flex w-[30%] shrink-0 items-center justify-end gap-1 pr-6 text-sm text-[#555]">
+        <label className="mb-1.5 flex items-center gap-1 text-sm text-[#555] sm:mb-0 sm:w-[30%] sm:shrink-0 sm:justify-end sm:pr-6">
             {children}
-            {hint && <CircleHelp className="size-3.5 text-gray-400" aria-hidden="true" />}
+            {hint && (
+                <CircleHelp
+                    className="size-3.5 text-gray-400"
+                    aria-hidden="true"
+                />
+            )}
         </label>
     );
 }
@@ -85,7 +95,7 @@ function FieldRow({
     children: React.ReactNode;
 }) {
     return (
-        <div className="flex min-h-[44px] items-center border-b border-[#f5f5f5] py-3 transition-colors last:border-b-0 hover:bg-[#fafafa]/80">
+        <div className="flex min-h-[44px] flex-col border-b border-[#f5f5f5] py-3 transition-colors last:border-b-0 hover:bg-[#fafafa]/80 sm:flex-row sm:items-center">
             <FieldLabel hint={hint}>{label}</FieldLabel>
             <div className="flex flex-1 flex-wrap items-center gap-3 text-sm text-[#333]">
                 {children}
@@ -99,6 +109,8 @@ export default function AccountProfile() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [avatarBroken, setAvatarBroken] = useState(false);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -115,6 +127,8 @@ export default function AccountProfile() {
 
     useEffect(() => {
         const loadProfile = async () => {
+            setLoading(true);
+            setLoadError(null);
             try {
                 const { data } = await getUserProfile();
                 setProfile(data);
@@ -132,16 +146,22 @@ export default function AccountProfile() {
                         email: data.email,
                         phone: data.phone,
                         avatar: data.avatar,
+                        role: data.role,
                     });
                 }
             } catch (error) {
-                notify.error(
-                    getErrorMessage(error, "Không thể tải thông tin hồ sơ.")
+                const message = getErrorMessage(
+                    error,
+                    "Không thể tải thông tin hồ sơ."
                 );
+                setLoadError(message);
+                notify.error(message);
+            } finally {
+                setLoading(false);
             }
         };
 
-        loadProfile();
+        void loadProfile();
     }, [reset, setUser]);
 
     useEffect(() => {
@@ -191,11 +211,11 @@ export default function AccountProfile() {
         if (!file) return;
 
         if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
-            notify.error("Chỉ hỗ trợ định dạng JPEG, PNG.");
+            notify.error("Chỉ hỗ trợ JPEG, PNG, WebP, GIF.");
             return;
         }
         if (file.size > MAX_AVATAR_SIZE) {
-            notify.error("Dung lượng file tối đa 1 MB.");
+            notify.error("Dung lượng file tối đa 5 MB.");
             return;
         }
 
@@ -231,7 +251,29 @@ export default function AccountProfile() {
         }
     };
 
-    if (!profile) return <ProfileSkeleton />;
+    if (loading) return <ProfileSkeleton />;
+
+    if (loadError || !profile) {
+        return (
+            <AccountShell>
+                <div className="rounded-sm bg-white px-6 py-12 text-center shadow-sm ring-1 ring-black/[0.04]">
+                    <p className="text-sm font-medium text-[#333]">
+                        Không tải được hồ sơ
+                    </p>
+                    <p className="mt-1 text-sm text-[#999]">
+                        {loadError ?? "Vui lòng thử lại."}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="mt-4 rounded-sm bg-[#ee4d2d] px-5 py-2 text-sm text-white hover:opacity-90"
+                    >
+                        Tải lại
+                    </button>
+                </div>
+            </AccountShell>
+        );
+    }
 
     const displayAvatar = avatarPreview ?? profile.avatar ?? null;
     const showAvatarImage = Boolean(displayAvatar) && !avatarBroken;
@@ -298,8 +340,7 @@ export default function AccountProfile() {
                             </div>
                         </FieldRow>
 
-                        <div className="flex pt-6">
-                            <div className="w-[30%] shrink-0 pr-6" />
+                        <div className="flex pt-6 sm:pl-[30%]">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
@@ -354,7 +395,7 @@ export default function AccountProfile() {
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".jpeg,.jpg,.png,image/jpeg,image/png"
+                            accept=".jpeg,.jpg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
                             disabled={isUploadingAvatar}
                             onChange={handleAvatarChange}
@@ -370,8 +411,8 @@ export default function AccountProfile() {
                         </button>
 
                         <ul className="mt-4 space-y-0.5 text-center text-xs leading-relaxed text-[#999]">
-                            <li>Dung lượng file tối đa 1 MB</li>
-                            <li>Định dạng:.JPEG, .PNG</li>
+                            <li>Dung lượng tối đa 5 MB</li>
+                            <li>Định dạng: JPEG, PNG, WebP, GIF</li>
                         </ul>
                     </div>
                 </div>

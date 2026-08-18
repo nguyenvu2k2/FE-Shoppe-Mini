@@ -1,31 +1,61 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, Info } from "lucide-react";
-import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AxiosError } from "axios";
 
 import GoogleLoginButton from "./google-login-button";
 import { login } from "@/services/auth/auth.service";
-import { parseUserResponse } from "@/lib/auth.types";
-import { useRouter } from "next/navigation";
+import { getPostLoginRedirect, parseUserResponse } from "@/lib/auth.types";
+import { establishSession, hydrateAuthSession } from "@/lib/auth-session";
+import { useAuthStore } from "@/lib/auth-store";
 import { notify } from "@/lib/toast";
-import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
 
 const loginSchema = z.object({
     email: z.string().trim().min(1, "Vui lòng nhập email").email("Email không hợp lệ"),
     password: z.string().trim().min(1, "Vui lòng nhập mật khẩu"),
-    role: z.enum(["customer", "seller"]),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginForm() {
+function LoginFormInner() {
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
-    const { setUser } = useAuthStore.getState();
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get("callbackUrl");
+    const sessionExpired = searchParams.get("session") === "expired";
+    const user = useAuthStore((s) => s.user);
+
+    useEffect(() => {
+        if (sessionExpired) {
+            notify.info("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        }
+    }, [sessionExpired]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const check = async () => {
+            if (user) {
+                router.replace(getPostLoginRedirect(user, callbackUrl));
+                return;
+            }
+            const sessionUser = await hydrateAuthSession();
+            if (!cancelled && sessionUser) {
+                router.replace(getPostLoginRedirect(sessionUser, callbackUrl));
+            }
+        };
+
+        void check();
+        return () => {
+            cancelled = true;
+        };
+    }, [user, callbackUrl, router]);
 
     const {
         register,
@@ -36,23 +66,35 @@ export default function LoginForm() {
         defaultValues: {
             email: "",
             password: "",
-            role: "customer",
         },
     });
 
     const onSubmit = async (values: LoginFormValues) => {
         try {
-            const { data } = await login(values);
+            const { data } = await login({
+                email: values.email.trim(),
+                password: values.password,
+            });
             const user = parseUserResponse(data);
             if (!user) {
                 notify.error("Phản hồi từ server không hợp lệ.");
                 return;
             }
-            setUser(user);
-            router.replace("/shop");
+
+            const sessionUser = await establishSession(user);
+            const redirectTo = getPostLoginRedirect(sessionUser, callbackUrl);
+            router.replace(redirectTo);
             notify.success("Đăng nhập thành công");
-        } catch {
-            notify.error("Đăng nhập thất bại");
+        } catch (error) {
+            const message =
+                error instanceof AxiosError
+                    ? (error.response?.data as { message?: string | string[] })
+                          ?.message
+                    : null;
+            const text = Array.isArray(message)
+                ? message.join(", ")
+                : message || "Đăng nhập thất bại";
+            notify.error(text);
         }
     };
 
@@ -65,7 +107,8 @@ export default function LoginForm() {
                     <div>
                         <input
                             {...register("email")}
-                            type="text"
+                            type="email"
+                            autoComplete="email"
                             placeholder="Email"
                             className="w-full rounded-sm border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#ee4d2d] focus:shadow-[0_0_0_1px_#ee4d2d]"
                         />
@@ -79,6 +122,7 @@ export default function LoginForm() {
                             <input
                                 {...register("password")}
                                 type={showPassword ? "text" : "password"}
+                                autoComplete="current-password"
                                 placeholder="Mật khẩu"
                                 className="w-full rounded-sm border border-gray-300 px-3 py-2.5 pr-10 text-sm outline-none focus:border-[#ee4d2d] focus:shadow-[0_0_0_1px_#ee4d2d]"
                             />
@@ -109,17 +153,6 @@ export default function LoginForm() {
                 >
                     {isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
                 </button>
-
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                    <input
-                        type="checkbox"
-                        {...register("role")}
-                        value="customer"
-                        className="size-4 accent-[#ee4d2d]"
-                    />
-                    Duy trì đăng nhập
-                    <Info className="size-3.5 text-gray-400" />
-                </label>
             </form>
 
             <div className="my-6 flex items-center gap-3">
@@ -128,14 +161,28 @@ export default function LoginForm() {
                 <div className="h-px flex-1 bg-gray-300" />
             </div>
 
-            <GoogleLoginButton />
+            <GoogleLoginButton callbackUrl={callbackUrl} />
 
-            <p className="p-2 mt-8 text-center text-sm text-gray-500">
-                Bạn mới biết đến Shoppe?{" "}
+            <p className="mt-8 p-2 text-center text-sm text-gray-500">
+                Bạn mới biết đến Shop Mini?{" "}
                 <Link href="/register" className="text-[#ee4d2d] hover:opacity-80">
                     Đăng ký
                 </Link>
             </p>
         </div>
+    );
+}
+
+export default function LoginForm() {
+    return (
+        <Suspense
+            fallback={
+                <div className="rounded-sm bg-white px-7.5 py-7.5 shadow-md">
+                    <p className="text-sm text-gray-500">Đang tải...</p>
+                </div>
+            }
+        >
+            <LoginFormInner />
+        </Suspense>
     );
 }

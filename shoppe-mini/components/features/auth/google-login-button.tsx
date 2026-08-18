@@ -3,10 +3,11 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AxiosError } from "axios";
 
 import { googleLogin } from "@/services/auth/auth.service";
-import { parseUserResponse } from "@/lib/auth.types";
-import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
+import { getPostLoginRedirect, parseUserResponse } from "@/lib/auth.types";
+import { establishSession } from "@/lib/auth-session";
 import { notify } from "@/lib/toast";
 
 function GoogleIcon() {
@@ -32,10 +33,15 @@ function GoogleIcon() {
     );
 }
 
-export default function GoogleLoginButton() {
+type GoogleLoginButtonProps = {
+    callbackUrl?: string | null;
+};
+
+export default function GoogleLoginButton({
+    callbackUrl,
+}: GoogleLoginButtonProps) {
     const router = useRouter();
     const [loading, setIsLoading] = useState(false);
-    const { setUser } = useAuthStore.getState();
 
     const handleGoogleLogin = useGoogleLogin({
         flow: "auth-code",
@@ -50,12 +56,20 @@ export default function GoogleLoginButton() {
                     return;
                 }
 
-                setUser(user);
-                router.push("/shop");
+                const sessionUser = await establishSession(user);
+                const redirectTo = getPostLoginRedirect(sessionUser, callbackUrl);
+                router.replace(redirectTo);
                 notify.success("Đăng nhập thành công");
             } catch (error) {
-                console.error("Google login thất bại:", error);
-                notify.error("Đăng nhập Google thất bại. Vui lòng thử lại.");
+                const message =
+                    error instanceof AxiosError
+                        ? (error.response?.data as { message?: string | string[] })
+                              ?.message
+                        : null;
+                const text = Array.isArray(message)
+                    ? message.join(", ")
+                    : message || "Đăng nhập Google thất bại. Vui lòng thử lại.";
+                notify.error(text);
             } finally {
                 setIsLoading(false);
             }
@@ -74,7 +88,7 @@ export default function GoogleLoginButton() {
                 className="flex w-full items-center justify-center gap-2 rounded-sm border border-gray-300 bg-white py-2.5 text-sm text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <GoogleIcon />
-                {loading ? "Đang đăng nhập..." : "Google"}
+                {loading ? "Đang đăng nhập..." : "Đăng nhập Google"}
             </button>
         </div>
     );

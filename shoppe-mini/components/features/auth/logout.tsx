@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { logout } from "@/services/auth/auth.service";
 import { toast } from "sonner";
-import { useAuthStore } from "@/src/app/(store)/auth/auth..store";
+import { useAuthStore } from "@/lib/auth-store";
+import { useCartStore } from "@/lib/cart-store";
 
 export default function LogoutButton() {
     const router = useRouter();
@@ -12,6 +13,7 @@ export default function LogoutButton() {
         try {
             await logout();
             useAuthStore.getState().clearUser();
+            useCartStore.getState().clearLocal();
 
             toast.success("Đăng xuất thành công");
 

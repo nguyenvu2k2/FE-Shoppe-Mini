@@ -1,5 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-import { useAuthStore, type User } from "@/src/app/(store)/auth/auth..store";
+import { useAuthStore, type User } from "@/lib/auth-store";
+import { useCartStore } from "@/lib/cart-store";
+import { parseUserResponse } from "@/lib/auth.types";
 
 export const api = axios.create({
     baseURL: "/api",
@@ -39,7 +41,13 @@ const shouldSkipRefresh = (url?: string) =>
 const isPublicAuthPage = () => {
     if (typeof window === "undefined") return false;
     const path = window.location.pathname;
-    return path.startsWith("/login") || path.startsWith("/register") || path.startsWith("/forgot-password") || path.startsWith("/reset-password");
+    return (
+        path.startsWith("/login") ||
+        path.startsWith("/signin") ||
+        path.startsWith("/register") ||
+        path.startsWith("/forgot-password") ||
+        path.startsWith("/reset-password")
+    );
 };
 
 api.interceptors.request.use((config) => {
@@ -73,13 +81,17 @@ api.interceptors.response.use(
         isRefreshing = true;
 
         try {
-            const { data } = await api.post<{ user: User }>("auth/refresh");
-            useAuthStore.getState().setUser(data.user);
+            const { data } = await api.post("auth/refresh");
+            const user = parseUserResponse(data) as User | null;
+            if (user) {
+                useAuthStore.getState().setUser(user);
+            }
             processQueue(null);
             return api(originalRequest);
         } catch (refreshError) {
             processQueue(refreshError);
             useAuthStore.getState().clearUser();
+            useCartStore.getState().clearLocal();
 
             try {
                 await api.post("auth/signout");
@@ -87,8 +99,24 @@ api.interceptors.response.use(
                 // Cookie có thể đã hết hạn — vẫn redirect xuống dưới
             }
 
+            // Chỉ ép login trên route bảo vệ — catalog public (/ , /products...) vẫn xem được khi guest
             if (typeof window !== "undefined" && !isPublicAuthPage()) {
-                window.location.href = "/login?session=expired";
+                const path = window.location.pathname;
+                const protectedPrefixes = [
+                    "/account",
+                    "/orders",
+                    "/cart",
+                    "/checkout",
+                    "/payments",
+                    "/admin",
+                ];
+                const onProtected = protectedPrefixes.some(
+                    (prefix) =>
+                        path === prefix || path.startsWith(`${prefix}/`)
+                );
+                if (onProtected) {
+                    window.location.href = "/login?session=expired";
+                }
             }
             return Promise.reject(refreshError);
         } finally {
