@@ -14,6 +14,7 @@ import { notify } from "@/lib/toast";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import AccountShell from "./account-shell";
+import { disconnectSocket } from "@/lib/socket";
 
 const changePasswordSchema = z
     .object({
@@ -124,7 +125,7 @@ export default function AccountChangePassword() {
 
             notify.success(
                 data.message ||
-                    "Đổi mật khẩu thành công. Vui lòng đăng nhập lại."
+                "Đổi mật khẩu thành công. Vui lòng đăng nhập lại."
             );
 
             try {
@@ -135,6 +136,7 @@ export default function AccountChangePassword() {
 
             clearUser();
             useCartStore.getState().clearLocal();
+            disconnectSocket();
             router.replace("/login");
         } catch (error) {
             notify.error(

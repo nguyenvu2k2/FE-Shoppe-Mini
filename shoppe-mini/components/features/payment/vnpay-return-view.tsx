@@ -11,75 +11,69 @@ import {
 } from "@/components/features/order/order-status-badge";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { formatPrice } from "@/lib/format-price";
-import type { Order } from "@/lib/order.types";
-import type { PaymentTxn } from "@/lib/payment.types";
+import type { Order, PaymentStatus, OrderStatus } from "@/lib/order.types";
 import { getMyOrder } from "@/services/order/order.service";
-import { getOrderPayments } from "@/services/payment/payment.service";
+import { offOrderUpdatedSocet, onOrderUpdatedSocet } from "@/lib/socket";
+
+type OrderUpdatedPayload = {
+    orderId?: number;
+    paymentStatus?: PaymentStatus;
+    status?: OrderStatus;
+    order?: Order;
+};
 
 type Phase = "polling" | "paid" | "failed" | "pending" | "error";
-
-const POLL_MS = 2000;
-const MAX_ATTEMPTS = 45;
 
 export default function VnpayReturnView() {
     const searchParams = useSearchParams();
     const orderId = Number(searchParams.get("orderId"));
     const orderCode = searchParams.get("orderCode") ?? "";
-    const queryStatus = searchParams.get("status");
     const txnRef = searchParams.get("txnRef") ?? "";
 
     const validOrderId = Number.isFinite(orderId) && orderId > 0;
     const [phase, setPhase] = useState<Phase>(
         validOrderId ? "polling" : "error"
     );
+
     const [order, setOrder] = useState<Order | null>(null);
     const [error, setError] = useState<string | null>(
         validOrderId ? null : "Thiếu thông tin đơn hàng trên URL trả về."
     );
-    const attempts = useRef(0);
 
     useEffect(() => {
         if (!validOrderId) return;
 
         let cancelled = false;
         let timer: ReturnType<typeof setTimeout> | undefined;
-        attempts.current = 0;
 
-        const tick = async () => {
-            try {
-                const [{ data }] = await Promise.all([
-                    getMyOrder(orderId),
-                    getOrderPayments(orderId).catch(
-                        () => ({ data: [] as PaymentTxn[] })
-                    ),
-                ]);
-                if (cancelled) return;
+        const applyOrder = (data: Order) => {
+            setOrder(data);
+            if (data.paymentStatus === "PAID") {
+                setPhase("paid");
+                return true;
+            }
+            if (data.status === "CANCELLED" || data.paymentStatus === "FAILED") {
+                setPhase("failed");
+                return true;
+            }
+            return false;
+        };
 
-                setOrder(data);
+        // Cùng một hàm cho on và off — arrow khác nhau thì off không gỡ được
+        const handler = (payload: OrderUpdatedPayload) => {
+            if (cancelled) return;
+            if (payload.orderId !== orderId) return;
 
-                if (data.paymentStatus === "PAID") {
-                    setPhase("paid");
-                    return;
-                }
-
-                if (
-                    data.status === "CANCELLED" ||
-                    data.paymentStatus === "FAILED"
-                ) {
-                    setPhase("failed");
-                    return;
-                }
-
-                attempts.current += 1;
-                if (attempts.current >= MAX_ATTEMPTS) {
-                    setPhase("pending");
-                    return;
-                }
-                timer = setTimeout(() => void tick(), POLL_MS);
-            } catch (err) {
-                if (cancelled) return;
-                attempts.current += 1;
-                if (attempts.current >= MAX_ATTEMPTS) {
+            void getMyOrder(orderId)
+                .then(({ data }) => {
+                    if (cancelled) return;
+                    if (applyOrder(data) && timer) {
+                        clearTimeout(timer);
+                        timer = undefined;
+                    }
+                })
+                .catch((err) => {
+                    if (cancelled) return;
                     setPhase("error");
                     setError(
                         getApiErrorMessage(
@@ -87,42 +81,66 @@ export default function VnpayReturnView() {
                             "Không xác nhận được thanh toán. Vào đơn hàng để kiểm tra."
                         )
                     );
-                    return;
-                }
-                timer = setTimeout(() => void tick(), POLL_MS);
+                });
+        };
+
+        const start = async () => {
+            try {
+                const { data } = await getMyOrder(orderId);
+                if (cancelled) return;
+
+                if (applyOrder(data)) return;
+
+                onOrderUpdatedSocet(handler);
+                timer = setTimeout(() => {
+                    if (cancelled) return;
+                    setPhase((current) =>
+                        current === "polling" ? "pending" : current
+                    );
+                }, 90_000);
+            } catch (err) {
+                if (cancelled) return;
+                setPhase("error");
+                setError(
+                    getApiErrorMessage(
+                        err,
+                        "Không xác nhận được thanh toán. Vào đơn hàng để kiểm tra."
+                    )
+                );
             }
         };
 
-        timer = setTimeout(() => void tick(), 0);
+        void start();
 
         return () => {
             cancelled = true;
+            offOrderUpdatedSocet(handler);
             if (timer) clearTimeout(timer);
         };
-    }, [orderId, queryStatus, validOrderId]);
+    }, [orderId, validOrderId]);
 
     const heading =
         phase === "paid"
             ? "Thanh toán thành công"
             : phase === "failed"
-              ? "Thanh toán không thành công"
-              : phase === "pending"
-                ? "Đang chờ xác nhận thanh toán"
-                : phase === "error"
-                  ? "Không kiểm tra được thanh toán"
-                  : "Đang xác nhận thanh toán VNPay";
+                ? "Thanh toán không thành công"
+                : phase === "pending"
+                    ? "Đang chờ xác nhận thanh toán"
+                    : phase === "error"
+                        ? "Không kiểm tra được thanh toán"
+                        : "Đang xác nhận thanh toán VNPay";
 
     const description =
         phase === "paid"
             ? "Đơn hàng đã được thanh toán."
             : phase === "failed"
-              ? order?.cancelReason ||
+                ? order?.cancelReason ||
                 "Đơn đã hủy hoặc thanh toán thất bại."
-              : phase === "pending"
-                ? "Hệ thống đang xác nhận. Bạn có thể xem lại đơn hàng."
-                : phase === "error"
-                  ? error
-                  : "Vui lòng chờ trong giây lát.";
+                : phase === "pending"
+                    ? "Hệ thống đang xác nhận. Bạn có thể xem lại đơn hàng."
+                    : phase === "error"
+                        ? error
+                        : "Vui lòng chờ trong giây lát.";
 
     return (
         <div className="mx-auto max-w-lg px-4 py-12">

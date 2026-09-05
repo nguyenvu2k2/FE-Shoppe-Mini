@@ -5,6 +5,7 @@ import { logout } from "@/services/auth/auth.service";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
+import { disconnectSocket } from "@/lib/socket";
 
 export default function LogoutButton() {
     const router = useRouter();
@@ -14,6 +15,8 @@ export default function LogoutButton() {
             await logout();
             useAuthStore.getState().clearUser();
             useCartStore.getState().clearLocal();
+
+            disconnectSocket();
 
             toast.success("Đăng xuất thành công");
 

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import { hydrateAuthSession } from "@/lib/auth-session";
+import { connectSocket, disconnectSocket } from "@/lib/socket";
 
 const PUBLIC_AUTH_PATHS = [
     "/login",
@@ -46,9 +47,14 @@ export default function AuthProvider({
         const init = async () => {
             setLoading(true);
             try {
-                await hydrateAuthSession();
+                const user = await hydrateAuthSession();
                 if (!cancelled) {
                     hydratedRef.current = true;
+                }
+                if (user) {
+                    connectSocket();
+                } else {
+                    disconnectSocket();
                 }
             } catch {
                 if (!cancelled) {
@@ -56,6 +62,7 @@ export default function AuthProvider({
                     useCartStore.getState().clearLocal();
                     hydratedRef.current = true;
                 }
+                disconnectSocket();
             } finally {
                 if (!cancelled) {
                     setLoading(false);

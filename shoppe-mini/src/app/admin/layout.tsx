@@ -20,6 +20,7 @@ import { logout } from "@/services/auth/auth.service";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import { cn } from "@/lib/utils";
+import { disconnectSocket } from "@/lib/socket";
 
 const navItems = [
     { label: "Tổng quan", href: "/admin", icon: LayoutDashboard, exact: true },
@@ -43,6 +44,7 @@ function AdminSidebar({
             await logout();
             useAuthStore.getState().clearUser();
             useCartStore.getState().clearLocal();
+            disconnectSocket();
             toast.success("Đăng xuất thành công");
             router.replace("/login");
         } catch {

@@ -467,8 +467,8 @@ export default function CheckoutView() {
                     {submitting
                         ? "Đang đặt hàng..."
                         : paymentMethod === "VNPAY"
-                          ? "Đặt hàng & thanh toán VNPay"
-                          : "Đặt hàng"}
+                            ? "Đặt hàng & thanh toán VNPay"
+                            : "Đặt hàng"}
                 </button>
                 <Link
                     href="/cart"

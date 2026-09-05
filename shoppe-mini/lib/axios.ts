@@ -2,6 +2,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore, type User } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import { parseUserResponse } from "@/lib/auth.types";
+import { disconnectSocket } from "./socket";
 
 export const api = axios.create({
     baseURL: "/api",
@@ -92,6 +93,8 @@ api.interceptors.response.use(
             processQueue(refreshError);
             useAuthStore.getState().clearUser();
             useCartStore.getState().clearLocal();
+
+            disconnectSocket();
 
             try {
                 await api.post("auth/signout");

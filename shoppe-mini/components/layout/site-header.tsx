@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import { isAdminRole } from "@/lib/auth.types";
+import { disconnectSocket } from "@/lib/socket";
 
 const menuItems = [
     { label: "Tài khoản", href: "/account", icon: UserRound },
@@ -40,6 +41,7 @@ export default function SiteHeader() {
             await logout();
             useAuthStore.getState().clearUser();
             useCartStore.getState().clearLocal();
+            disconnectSocket();
             toast.success("Đăng xuất thành công");
             router.replace("/login");
         } catch (error) {
