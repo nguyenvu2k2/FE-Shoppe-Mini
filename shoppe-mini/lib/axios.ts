@@ -2,10 +2,11 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore, type User } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
 import { parseUserResponse } from "@/lib/auth.types";
+import { getApiBaseUrl } from "./api-url";
 import { disconnectSocket } from "./socket";
 
 export const api = axios.create({
-    baseURL: "/api",
+    baseURL: getApiBaseUrl(),
     withCredentials: true,
 });
 

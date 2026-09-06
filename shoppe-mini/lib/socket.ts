@@ -1,17 +1,18 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL =
-    process.env.NEXT_PUBLIC_SOCKET_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3001";
+import { getApiBaseUrl } from "./api-url";
+
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || getApiBaseUrl();
 
 const socket = io(SOCKET_URL, {
-    autoConnect: false,
-    withCredentials: true,
-    // BE chưa gắn engine thì 404; không retry vô hạn
-    reconnection: true,
-    reconnectionAttempts: 3,
-    reconnectionDelay: 2000,
+  path: "/socket.io",
+  autoConnect: false,
+  withCredentials: true,
+  reconnection: true,
+  reconnectionAttempts: 3,
+  reconnectionDelay: 2000,
+  // polling trước — websocket-first dễ dính Session ID unknown sau proxy
+  transports: ["polling", "websocket"],
 });
 
 let loggedHandshakeError = false;
