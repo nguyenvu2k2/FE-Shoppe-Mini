@@ -32,7 +32,11 @@ import {
 
 const NOTE_MAX = 500;
 
-export default function CheckoutView() {
+type CheckoutViewProps = {
+    fromBuyNow?: boolean;
+};
+
+export default function CheckoutView({ fromBuyNow = false }: CheckoutViewProps) {
     const router = useRouter();
     const cart = useCartStore((s) => s.cart);
     const isLoadingCart = useCartStore((s) => s.isLoading);
@@ -143,6 +147,14 @@ export default function CheckoutView() {
                 ...(trimmedNote ? { note: trimmedNote } : {}),
             });
 
+            if (!data?.id) {
+                notify.error(
+                    "Đặt hàng xong nhưng thiếu mã đơn. Mở trang Đơn hàng để kiểm tra."
+                );
+                router.replace("/orders");
+                return;
+            }
+
             clearLocal();
             void fetchCart();
 
@@ -194,7 +206,7 @@ export default function CheckoutView() {
         }
     };
 
-    if (isLoadingCart && !cart) {
+    if (isLoadingCart || !cart) {
         return (
             <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -373,6 +385,12 @@ export default function CheckoutView() {
                     <h2 className="text-base font-semibold text-gray-900">
                         Sản phẩm
                     </h2>
+                    {fromBuyNow && items.length > 1 && (
+                        <p className="mt-2 text-sm text-gray-600">
+                            Mua ngay đã thêm sản phẩm vào giỏ. Đơn hàng sẽ gồm
+                            toàn bộ sản phẩm đang có trong giỏ.
+                        </p>
+                    )}
                     {unavailable.length > 0 && (
                         <p className="mt-2 inline-flex items-center gap-1 text-sm text-amber-700">
                             <AlertTriangle className="size-4" />

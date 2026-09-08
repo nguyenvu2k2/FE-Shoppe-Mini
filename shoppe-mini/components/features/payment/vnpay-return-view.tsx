@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 
 import {
@@ -44,7 +44,8 @@ export default function VnpayReturnView() {
         if (!validOrderId) return;
 
         let cancelled = false;
-        let timer: ReturnType<typeof setTimeout> | undefined;
+        let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+        let pollTimer: ReturnType<typeof setInterval> | undefined;
 
         const applyOrder = (data: Order) => {
             setOrder(data);
@@ -59,63 +60,62 @@ export default function VnpayReturnView() {
             return false;
         };
 
-        // Cùng một hàm cho on và off — arrow khác nhau thì off không gỡ được
-        const handler = (payload: OrderUpdatedPayload) => {
-            if (cancelled) return;
-            if (payload.orderId !== orderId) return;
-
-            void getMyOrder(orderId)
-                .then(({ data }) => {
-                    if (cancelled) return;
-                    if (applyOrder(data) && timer) {
-                        clearTimeout(timer);
-                        timer = undefined;
-                    }
-                })
-                .catch((err) => {
-                    if (cancelled) return;
-                    setPhase("error");
-                    setError(
-                        getApiErrorMessage(
-                            err,
-                            "Không xác nhận được thanh toán. Vào đơn hàng để kiểm tra."
-                        )
-                    );
-                });
-        };
-
-        const start = async () => {
-            try {
-                const { data } = await getMyOrder(orderId);
-                if (cancelled) return;
-
-                if (applyOrder(data)) return;
-
-                onOrderUpdatedSocet(handler);
-                timer = setTimeout(() => {
-                    if (cancelled) return;
-                    setPhase((current) =>
-                        current === "polling" ? "pending" : current
-                    );
-                }, 90_000);
-            } catch (err) {
-                if (cancelled) return;
-                setPhase("error");
-                setError(
-                    getApiErrorMessage(
-                        err,
-                        "Không xác nhận được thanh toán. Vào đơn hàng để kiểm tra."
-                    )
-                );
+        const stopWait = () => {
+            if (pendingTimer) {
+                clearTimeout(pendingTimer);
+                pendingTimer = undefined;
+            }
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = undefined;
             }
         };
 
-        void start();
+        const fetchOrder = async () => {
+            const { data } = await getMyOrder(orderId);
+            if (cancelled) return false;
+            if (applyOrder(data)) {
+                stopWait();
+                return true;
+            }
+            return false;
+        };
+
+        const handler = (payload: OrderUpdatedPayload) => {
+            if (cancelled) return;
+            if (payload.orderId !== orderId) return;
+            void fetchOrder().catch(() => {
+                /* poll / timeout vẫn chạy */
+            });
+        };
+
+        // Không đợi GET/socket — GET treo thì trước đây không bao giờ sang pending
+        pendingTimer = setTimeout(() => {
+            if (cancelled) return;
+            setPhase((current) => (current === "polling" ? "pending" : current));
+        }, 15_000);
+
+        onOrderUpdatedSocet(handler);
+        pollTimer = setInterval(() => {
+            void fetchOrder().catch(() => {
+                /* lần sau / timeout */
+            });
+        }, 3000);
+
+        void fetchOrder().catch((err) => {
+            if (cancelled) return;
+            setError(
+                getApiErrorMessage(
+                    err,
+                    "Chưa xác nhận được từ máy chủ. Đợi thêm hoặc mở đơn hàng."
+                )
+            );
+        });
 
         return () => {
             cancelled = true;
             offOrderUpdatedSocet(handler);
-            if (timer) clearTimeout(timer);
+            stopWait();
         };
     }, [orderId, validOrderId]);
 

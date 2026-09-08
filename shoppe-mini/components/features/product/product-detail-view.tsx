@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AxiosError } from "axios";
-import { Minus, Plus, ShoppingCart } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 
 import Price from "@/components/ui/price";
 import ProductImage from "@/components/ui/product-image";
+import { getApiErrorMessage } from "@/lib/api-error";
 import type { ProductDetail, ProductVariant } from "@/lib/catalog.types";
 import { useAuthStore } from "@/lib/auth-store";
 import { useCartStore } from "@/lib/cart-store";
@@ -43,7 +43,9 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
         hasVariants ? null : null
     );
     const [quantity, setQuantity] = useState(1);
-    const [adding, setAdding] = useState(false);
+    const [pendingAction, setPendingAction] = useState<"cart" | "buyNow" | null>(
+        null
+    );
 
     const selectedVariant = variants.find((v) => v.id === selectedVariantId);
 
@@ -58,48 +60,65 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
           product.inventory?.find((i) => !i.variantId)?.quantity ??
           0);
 
-    const canAdd =
+    const busy = pendingAction != null;
+    const canPurchase =
         availableStock > 0 &&
         quantity >= 1 &&
         quantity <= availableStock &&
         (!hasVariants || selectedVariantId != null);
 
-    const handleAddToCart = async () => {
+    const requireReadyToPurchase = (loginMessage: string) => {
         if (hasVariants && selectedVariantId == null) {
             notify.error("Vui lòng chọn phân loại sản phẩm");
-            return;
+            return false;
         }
 
         if (!user) {
-            notify.info("Vui lòng đăng nhập để thêm vào giỏ hàng");
+            notify.info(loginMessage);
             router.push(
                 `/login?callbackUrl=${encodeURIComponent(`/products/${product.slug}`)}`
             );
+            return false;
+        }
+
+        return true;
+    };
+
+    const addCurrentItemToCart = () =>
+        addItem({
+            productId: product.id,
+            quantity,
+            ...(selectedVariantId != null ? { variantId: selectedVariantId } : {}),
+        });
+
+    const handleAddToCart = async () => {
+        if (!requireReadyToPurchase("Vui lòng đăng nhập để thêm vào giỏ hàng")) {
             return;
         }
 
-        setAdding(true);
+        setPendingAction("cart");
         try {
-            await addItem({
-                productId: product.id,
-                quantity,
-                ...(selectedVariantId != null
-                    ? { variantId: selectedVariantId }
-                    : {}),
-            });
+            await addCurrentItemToCart();
             notify.success("Đã thêm vào giỏ hàng");
         } catch (error) {
-            const message =
-                error instanceof AxiosError
-                    ? (error.response?.data as { message?: string | string[] })
-                          ?.message
-                    : null;
-            const text = Array.isArray(message)
-                ? message.join(", ")
-                : message || "Không thể thêm vào giỏ hàng";
-            notify.error(text);
+            notify.error(getApiErrorMessage(error, "Không thể thêm vào giỏ hàng"));
         } finally {
-            setAdding(false);
+            setPendingAction(null);
+        }
+    };
+
+    const handleBuyNow = async () => {
+        if (!requireReadyToPurchase("Vui lòng đăng nhập để mua ngay")) {
+            return;
+        }
+
+        setPendingAction("buyNow");
+        try {
+            await addCurrentItemToCart();
+            router.push("/checkout?from=buy-now");
+        } catch (error) {
+            notify.error(getApiErrorMessage(error, "Không thể mua ngay"));
+            setPendingAction(null);
         }
     };
 
@@ -208,7 +227,7 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
                         </div>
                         {selectedVariantId == null && (
                             <p className="mt-2 text-xs text-amber-600">
-                                Chọn phân loại trước khi thêm vào giỏ
+                                Chọn phân loại trước khi thêm vào giỏ hoặc mua ngay
                             </p>
                         )}
                     </div>
@@ -252,15 +271,26 @@ export default function ProductDetailView({ product }: ProductDetailViewProps) {
                     </div>
                 </div>
 
-                <button
-                    type="button"
-                    disabled={!canAdd || adding}
-                    onClick={handleAddToCart}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ee4d2d] py-3.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[220px]"
-                >
-                    <ShoppingCart className="size-4" />
-                    {adding ? "Đang thêm..." : "Thêm vào giỏ"}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                        type="button"
+                        disabled={!canPurchase || busy}
+                        onClick={() => void handleAddToCart()}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#ee4d2d] bg-white py-3.5 text-sm font-semibold text-[#ee4d2d] transition hover:bg-[#fef6f5] disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[180px]"
+                    >
+                        <ShoppingCart className="size-4" />
+                        {pendingAction === "cart" ? "Đang thêm..." : "Thêm vào giỏ"}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={!canPurchase || busy}
+                        onClick={() => void handleBuyNow()}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ee4d2d] py-3.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[180px]"
+                    >
+                        <Zap className="size-4" />
+                        {pendingAction === "buyNow" ? "Đang xử lý..." : "Mua ngay"}
+                    </button>
+                </div>
 
                 {product.description && (
                     <div className="border-t border-gray-100 pt-5">

@@ -6,7 +6,13 @@ export const metadata: Metadata = {
     title: "Thanh toán",
 };
 
-export default function CheckoutPage() {
+type PageProps = {
+    searchParams: Promise<{ from?: string }>;
+};
+
+export default async function CheckoutPage({ searchParams }: PageProps) {
+    const { from } = await searchParams;
+
     return (
         <div className="mx-auto max-w-[1200px] px-4 py-8">
             <div className="mb-6">
@@ -17,7 +23,7 @@ export default function CheckoutPage() {
                     Chọn địa chỉ và phương thức thanh toán
                 </p>
             </div>
-            <CheckoutView />
+            <CheckoutView fromBuyNow={from === "buy-now"} />
         </div>
     );
 }

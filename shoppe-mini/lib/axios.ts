@@ -8,6 +8,7 @@ import { disconnectSocket } from "./socket";
 export const api = axios.create({
     baseURL: getApiBaseUrl(),
     withCredentials: true,
+    timeout: 20_000,
 });
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };

@@ -43,7 +43,11 @@ export default function OrderDetailView() {
     const [cancelReason, setCancelReason] = useState("");
 
     const load = useCallback(async () => {
-        if (!Number.isFinite(orderId) || orderId <= 0) return;
+        if (!Number.isFinite(orderId) || orderId <= 0) {
+            setOrder(null);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const [{ data }, paymentsRes] = await Promise.all([
